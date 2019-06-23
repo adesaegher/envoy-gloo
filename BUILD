@@ -25,6 +25,7 @@ envoy_cc_library(
         "//source/extensions/filters/http/nats/streaming:nats_streaming_filter_config_lib",
         "//source/extensions/filters/http/transformation:transformation_filter_config_lib",
         "//source/extensions/filters/network/consul_connect:config",
+        "//source/extensions/filters/http/gfunction:gfunction_filter_config",
     ],
 )
 
