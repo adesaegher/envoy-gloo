@@ -7,66 +7,168 @@
 
 #include "envoy/http/header_map.h"
 
+#include "common/buffer/buffer_impl.h"
 #include "common/common/empty_string.h"
 #include "common/common/hex.h"
 #include "common/common/utility.h"
-#include "common/config/gfunction_well_known_names.h"
-#include "common/config/solo_metadata.h"
 #include "common/http/headers.h"
+#include "common/http/solo_filter_utility.h"
+#include "common/http/utility.h"
+#include "common/singleton/const_singleton.h"
+
+#include "extensions/filters/http/solo_well_known_names.h"
 
 namespace Envoy {
-namespace Http {
+namespace Extensions {
+namespace HttpFilters {
+namespace GcloudGfunc {
 
-using Config::SoloMetadata;
+struct RcDetailsValues {
+  // The jwt_authn filter rejected the request
+  const std::string FunctionNotFound = "gfunction_function_not_found";
+};
+typedef ConstSingleton<RcDetailsValues> RcDetails;
 
-GfunctionFilter::GfunctionFilter() {}
+class GcloudGfuncHeaderValues {
+public:
+  const Http::LowerCaseString InvocationType{"x-amz-invocation-type"};
+  const std::string InvocationTypeEvent{"Event"};
+  const std::string InvocationTypeRequestResponse{"RequestResponse"};
+  const Http::LowerCaseString LogType{"x-amz-log-type"};
+  const std::string LogNone{"None"};
+  const Http::LowerCaseString HostHead{"x-amz-log-type"};
+};
 
-GfunctionFilter::~GfunctionFilter() {}
+typedef ConstSingleton<GcloudGfuncHeaderValues> GcloudGfuncHeaderNames;
 
-void GfunctionFilter::onDestroy() {}
+//const HeaderList GcloudGfuncFilter::HeadersToSign =
+//    GcloudAuthenticator::createHeaderToSign(
+//        {GcloudGfuncHeaderNames::get().InvocationType,
+//         GcloudGfuncHeaderNames::get().LogType, Http::Headers::get().HostLegacy,
+//         Http::Headers::get().ContentType});
 
-bool GfunctionFilter::retrieveFunction(const MetadataAccessor &meta_accessor) {
+GcloudGfuncFilter::GcloudGfuncFilter(Upstream::ClusterManager &cluster_manager,
+                                 TimeSource &time_source)
+//    : gcloud_authenticator_(time_source), cluster_manager_(cluster_manager) {}
 
-  absl::optional<const ProtobufWkt::Struct *> maybe_function_spec =
-      meta_accessor.getFunctionSpec();
-  if (!maybe_function_spec.has_value()) {
-    return false;
+GcloudGfuncFilter::~GcloudGfuncFilter() {}
+
+std::string GcloudGfuncFilter::functionUrlPath(const std::string &url) {
+
+  std::stringstream val;
+  Utility::extractHostPathFromUri(url, host, path);
+  val << path;
+  return val.str();
+}
+
+Http::FilterHeadersStatus
+GcloudGfuncFilter::decodeHeaders(Http::HeaderMap &headers, bool end_stream) {
+
+  protocol_options_ = Http::SoloFilterUtility::resolveProtocolOptions<
+      const GcloudGfuncProtocolExtensionConfig>(
+      SoloHttpFilterNames::get().GcloudGfunc, decoder_callbacks_,
+      cluster_manager_);
+  if (!protocol_options_) {
+    return Http::FilterHeadersStatus::Continue;
   }
-  const ProtobufWkt::Struct &function_spec = *maybe_function_spec.value();
 
-  host_ = SoloMetadata::nonEmptyStringValue(
-      function_spec, Config::MetadataGFunctionKeys::get().HOST);
-  path_ = SoloMetadata::nonEmptyStringValue(
-      function_spec, Config::MetadataGFunctionKeys::get().PATH);
+  route_ = decoder_callbacks_->route();
+  // great! this is an gcloud cluster. get the function information:
+  function_on_route_ =
+      Http::SoloFilterUtility::resolvePerFilterConfig<GcloudGfuncRouteConfig>(
+          SoloHttpFilterNames::get().GcloudGfunc, route_);
 
-  return host_.has_value() && path_.has_value();
+  if (!function_on_route_) {
+    decoder_callbacks_->sendLocalReply(Http::Code::NotFound,
+                                       "no function present for Gcloud upstream",
+                                       nullptr, absl::nullopt, RcDetails::get().FunctionNotFound);
+    return Http::FilterHeadersStatus::StopIteration;
+  }
+
+//  gcloud_authenticator_.init(&protocol_options_->accessKey(),
+//                          &protocol_options_->secretKey());
+  request_headers_ = &headers;
+
+  request_headers_->insertMethod().value().setReference(
+      Http::Headers::get().MethodValues.Post);
+
+  request_headers_->insertPath().value(functionUrlPath(
+      function_on_route_->name(), function_on_route_->url()));
+
+  if (end_stream) {
+    gfuncfy();
+    return Http::FilterHeadersStatus::Continue;
+  }
+
+  return Http::FilterHeadersStatus::StopIteration;
 }
 
-FilterHeadersStatus GfunctionFilter::decodeHeaders(HeaderMap &headers, bool) {
-  Gfunctionfy(headers);
-  return FilterHeadersStatus::Continue;
+Http::FilterDataStatus GcloudGfuncFilter::decodeData(Buffer::Instance &data,
+                                                   bool end_stream) {
+  if (!function_on_route_) {
+    return Http::FilterDataStatus::Continue;
+  }
+
+  if (data.length() != 0) {
+    has_body_ = true;
+  }
+
+//  gcloud_authenticator_.updatePayloadHash(data);
+
+  if (end_stream) {
+    gfuncfy();
+    return Http::FilterDataStatus::Continue;
+  }
+
+  return Http::FilterDataStatus::StopIterationAndBuffer;
 }
 
-FilterDataStatus GfunctionFilter::decodeData(Buffer::Instance &, bool) {
-  return FilterDataStatus::Continue;
+Http::FilterTrailersStatus GcloudGfuncFilter::decodeTrailers(Http::HeaderMap &) {
+  if (function_on_route_ != nullptr) {
+    gfuncfy();
+  }
+
+  return Http::FilterTrailersStatus::Continue;
 }
 
-void GfunctionFilter::Gfunctionfy(HeaderMap &headers) {
+void GcloudGfuncFilter::gfuncfy() {
 
-  headers.insertMethod().value().setReference(Headers::get().MethodValues.Post);
+  handleDefaultBody();
 
-  headers.insertPath().value().setReference(*path_.value());
-  headers.insertHost().value().setReference(*host_.value());
+  const std::string &invocation_type =
+      function_on_route_->async()
+          ? GcloudGfuncHeaderNames::get().InvocationTypeEvent
+          : GcloudGfuncHeaderNames::get().InvocationTypeRequestResponse;
+  request_headers_->addReference(GcloudGfuncHeaderNames::get().InvocationType,
+                                 invocation_type);
+  request_headers_->addReference(GcloudGfuncHeaderNames::get().LogType,
+                                 GcloudGfuncHeaderNames::get().LogNone);
+  request_headers_->insertHost().value(protocol_options_->host());
+
+//  gcloud_authenticator_.sign(request_headers_, HeadersToSign,
+//                          protocol_options_->region());
+  cleanup();
 }
 
-FilterTrailersStatus GfunctionFilter::decodeTrailers(HeaderMap &) {
-  return FilterTrailersStatus::Continue;
+void GcloudGfuncFilter::handleDefaultBody() {
+  if ((!has_body_) && function_on_route_->defaultBody()) {
+    Buffer::OwnedImpl data(function_on_route_->defaultBody().value());
+
+    request_headers_->insertContentType().value().setReference(
+        Http::Headers::get().ContentTypeValues.Json);
+    request_headers_->insertContentLength().value(data.length());
+//    gcloud_authenticator_.updatePayloadHash(data);
+    decoder_callbacks_->addDecodedData(data, false);
+  }
 }
 
-void GfunctionFilter::setDecoderFilterCallbacks(
-    StreamDecoderFilterCallbacks &callbacks) {
-  UNREFERENCED_PARAMETER(callbacks);
+void GcloudGfuncFilter::cleanup() {
+  request_headers_ = nullptr;
+  function_on_route_ = nullptr;
+  protocol_options_.reset();
 }
 
-} // namespace Http
+} // namespace GcloudGfunc
+} // namespace HttpFilters
+} // namespace Extensions
 } // namespace Envoy

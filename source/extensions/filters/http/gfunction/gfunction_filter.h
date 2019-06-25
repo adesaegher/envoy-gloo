@@ -4,44 +4,64 @@
 #include <string>
 
 #include "envoy/http/filter.h"
-#include "envoy/http/metadata_accessor.h"
 #include "envoy/upstream/cluster_manager.h"
 
-#include "common/common/logger.h"
+//#include "extensions/filters/http/gfunction/gcloud_authenticator.h"
+#include "extensions/filters/http/gfunction/config.h"
+
+#include "api/envoy/config/filter/http/gfunction/v2/gfunction.pb.validate.h"
 
 namespace Envoy {
-namespace Http {
+namespace Extensions {
+namespace HttpFilters {
+namespace GcloudGfunc {
 
-/**
- * Since currently all http cloud functions must have a public endpoint, no auth
- * is needed. This filter just changes the headers to match the function.
+/*
+ * A filter to make calls to Gcloud Gfunc. Note that as a functional filter,
+ * it expects retrieveFunction to be called before decodeHeaders.
  */
-class GfunctionFilter : public StreamDecoderFilter,
-                        public FunctionalFilter,
-                        public Logger::Loggable<Logger::Id::filter> {
+class GcloudGfuncFilter : public Http::StreamDecoderFilter {
 public:
-  GfunctionFilter();
-  ~GfunctionFilter();
+  GcloudGfuncFilter(Upstream::ClusterManager &cluster_manager,
+                  TimeSource &time_source);
+  ~GcloudGfuncFilter();
 
   // Http::StreamFilterBase
-  void onDestroy() override;
+  void onDestroy() override {}
 
   // Http::StreamDecoderFilter
-  FilterHeadersStatus decodeHeaders(HeaderMap &headers, bool) override;
-  FilterDataStatus decodeData(Buffer::Instance &, bool) override;
-  FilterTrailersStatus decodeTrailers(HeaderMap &) override;
-  void
-  setDecoderFilterCallbacks(StreamDecoderFilterCallbacks &callbacks) override;
-
-  // Http::FunctionalFilter
-  bool retrieveFunction(const MetadataAccessor &meta_accessor) override;
+  Http::FilterHeadersStatus decodeHeaders(Http::HeaderMap &, bool) override;
+  Http::FilterDataStatus decodeData(Buffer::Instance &, bool) override;
+  Http::FilterTrailersStatus decodeTrailers(Http::HeaderMap &) override;
+  void setDecoderFilterCallbacks(
+      Http::StreamDecoderFilterCallbacks &decoder_callbacks) override {
+    decoder_callbacks_ = &decoder_callbacks;
+  }
 
 private:
-  absl::optional<const std::string *> host_;
-  absl::optional<const std::string *> path_;
+//  static const HeaderList HeadersToSign;
 
-  void Gfunctionfy(HeaderMap &headers);
+  void handleDefaultBody();
+
+  void gfuncfy();
+  static std::string functionUrlPath(const std::string &name,
+                                     const std::string &url);
+  void cleanup();
+
+  Http::HeaderMap *request_headers_{};
+//  GcloudAuthenticator gcloud_authenticator_;
+
+  Http::StreamDecoderFilterCallbacks *decoder_callbacks_{};
+
+  Upstream::ClusterManager &cluster_manager_;
+  std::shared_ptr<const GcloudGfuncProtocolExtensionConfig> protocol_options_;
+
+  Router::RouteConstSharedPtr route_;
+  const GcloudGfuncRouteConfig *function_on_route_{};
+  bool has_body_{};
 };
 
-} // namespace Http
+} // namespace GcloudGfunc
+} // namespace HttpFilters
+} // namespace Extensions
 } // namespace Envoy

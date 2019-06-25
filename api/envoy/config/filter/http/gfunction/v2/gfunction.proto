@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package envoy.config.filter.http.gfunction.v2;
+
+import "google/protobuf/wrappers.proto";
+import "validate/validate.proto";
+
+// [#protodoc-title: Gcloud Gfunc]
+// Gcloud Gfunc
+
+// Gcloud Gfunc contains the configuration necessary to perform transform regular
+// http calls to Gcloud Gfunc invocations.
+message GcloudGfuncPerRoute {
+  // The name of the function
+  string name = 1 [ (validate.rules).string.min_bytes = 1 ];
+  // The qualifier of the function (defualts to $LATEST if not specified)
+  string url = 2;
+
+  // Optional default body if the body is empty. By default on default
+  // body is used if the body empty, and an empty body will be sent upstream.
+  google.protobuf.StringValue empty_body_override = 3;
+}
+
+message GcloudGfuncProtocolExtension {
+  // The region for this cluster
+  string region = 1 [ (validate.rules).string.min_bytes = 1 ];
+  // The access_key for Gcloud this cluster
+  string access_key = 2 [ (validate.rules).string.min_bytes = 1 ];
+  // The secret_key for Gcloud this cluster
+  string json_key = 3 [ (validate.rules).string.min_bytes = 1 ];
+}
