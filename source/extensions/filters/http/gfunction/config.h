@@ -19,7 +19,6 @@ public:
   GcloudGfuncRouteConfig(
       const envoy::config::filter::http::gfunction::v2::GcloudGfuncPerRoute
           &protoconfig);
-
   const std::string &name() const { return name_; }
   const std::string &url() const { return url_; }
   const absl::optional<std::string> &defaultBody() const {
@@ -38,15 +37,17 @@ public:
   GcloudGfuncProtocolExtensionConfig(
       const envoy::config::filter::http::gfunction::v2::
           GcloudGfuncProtocolExtension &protoconfig)
-      : region_(protoconfig.region()),
+      : host_(protoconfig.host()), region_(protoconfig.region()),
         access_key_(protoconfig.access_key()),
         json_key_(protoconfig.json_key()) {}
 
+  const std::string &host() const { return host_; }
   const std::string &region() const { return region_; }
   const std::string &accessKey() const { return access_key_; }
   const std::string &jsonKey() const { return json_key_; }
 
 private:
+  std::string host_;
   std::string region_;
   std::string access_key_;
   std::string json_key_;

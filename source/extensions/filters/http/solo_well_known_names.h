@@ -27,7 +27,7 @@ public:
   // TODO(talnordan): Consider "io.solo.filters.http.transformation".
   const std::string Transformation = "io.solo.transformation";
   // Gcloud Function filter
-  const std::string GFUNCTION = "io.solo.gcloudfunc";
+  const std::string GcloudGfunc = "io.solo.gcloudfunc";
 };
 
 typedef ConstSingleton<SoloHttpFilterNameValues> SoloHttpFilterNames;

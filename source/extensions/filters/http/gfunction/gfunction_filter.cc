@@ -47,18 +47,23 @@ typedef ConstSingleton<GcloudGfuncHeaderValues> GcloudGfuncHeaderNames;
 //         GcloudGfuncHeaderNames::get().LogType, Http::Headers::get().HostLegacy,
 //         Http::Headers::get().ContentType});
 
-GcloudGfuncFilter::GcloudGfuncFilter(Upstream::ClusterManager &cluster_manager,
-                                 TimeSource &time_source)
+GcloudGfuncFilter::GcloudGfuncFilter(Upstream::ClusterManager &cluster_manager
+                                 )
+//                                 TimeSource &time_source)
 //    : gcloud_authenticator_(time_source), cluster_manager_(cluster_manager) {}
+    : cluster_manager_(cluster_manager) {}
 
 GcloudGfuncFilter::~GcloudGfuncFilter() {}
 
 std::string GcloudGfuncFilter::functionUrlPath(const std::string &url) {
 
   std::stringstream val;
-  Utility::extractHostPathFromUri(url, host, path);
+  absl::string_view host;
+  absl::string_view path;
+  Http::Utility::extractHostPathFromUri(url, host, path);
   val << path;
   return val.str();
+
 }
 
 Http::FilterHeadersStatus
@@ -93,7 +98,7 @@ GcloudGfuncFilter::decodeHeaders(Http::HeaderMap &headers, bool end_stream) {
       Http::Headers::get().MethodValues.Post);
 
   request_headers_->insertPath().value(functionUrlPath(
-      function_on_route_->name(), function_on_route_->url()));
+      function_on_route_->url()));
 
   if (end_stream) {
     gfuncfy();
@@ -135,12 +140,6 @@ void GcloudGfuncFilter::gfuncfy() {
 
   handleDefaultBody();
 
-  const std::string &invocation_type =
-      function_on_route_->async()
-          ? GcloudGfuncHeaderNames::get().InvocationTypeEvent
-          : GcloudGfuncHeaderNames::get().InvocationTypeRequestResponse;
-  request_headers_->addReference(GcloudGfuncHeaderNames::get().InvocationType,
-                                 invocation_type);
   request_headers_->addReference(GcloudGfuncHeaderNames::get().LogType,
                                  GcloudGfuncHeaderNames::get().LogNone);
   request_headers_->insertHost().value(protocol_options_->host());

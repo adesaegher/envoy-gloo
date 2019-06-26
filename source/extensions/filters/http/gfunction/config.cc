@@ -1,4 +1,4 @@
-#include "extensions/filters/http/gcloud_gfunc/config.h"
+#include "extensions/filters/http/gfunction/config.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -6,7 +6,7 @@ namespace HttpFilters {
 namespace GcloudGfunc {
 
 GcloudGfuncRouteConfig::GcloudGfuncRouteConfig(
-    const envoy::config::filter::http::gcloud_gfunc::v2::GcloudGfuncPerRoute
+    const envoy::config::filter::http::gfunction::v2::GcloudGfuncPerRoute
         &protoconfig)
     : name_(protoconfig.name()), url_(protoconfig.url()) {
 

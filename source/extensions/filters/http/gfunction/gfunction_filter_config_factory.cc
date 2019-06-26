@@ -14,8 +14,8 @@ namespace GcloudGfunc {
 Http::FilterFactoryCb GcloudGfuncFilterConfigFactory::createFilter(
     const std::string &, Server::Configuration::FactoryContext &context) {
   return [&context](Http::FilterChainFactoryCallbacks &callbacks) -> void {
-    auto filter = new GcloudGfuncFilter(context.clusterManager(),
-                                      context.dispatcher().timeSource());
+    auto filter = new GcloudGfuncFilter(context.clusterManager());
+//                                      context.dispatcher().timeSource());
     callbacks.addStreamDecoderFilter(
         Http::StreamDecoderFilterSharedPtr{filter});
   };

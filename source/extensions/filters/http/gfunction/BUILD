@@ -46,6 +46,9 @@ envoy_cc_library(
         "//source/common/http:solo_filter_utility_lib",
         "//source/extensions/filters/http:solo_well_known_names",
         "@envoy//source/common/http:utility_lib",
+        "@envoy//source/common/common:assert_lib",
+        "@envoy//source/common/common:empty_string",
+        "@envoy//source/common/common:hex_lib",
     ],
 )
 
@@ -64,6 +67,9 @@ envoy_cc_library(
         "//source/common/http:solo_filter_utility_lib",
         "//source/extensions/filters/http:solo_well_known_names",
         "@envoy//source/common/http:utility_lib",
+        "@envoy//source/common/common:assert_lib",
+        "@envoy//source/common/common:empty_string",
+        "@envoy//source/common/common:hex_lib",
     ],
 )
 

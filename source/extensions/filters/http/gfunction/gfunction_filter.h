@@ -22,8 +22,8 @@ namespace GcloudGfunc {
  */
 class GcloudGfuncFilter : public Http::StreamDecoderFilter {
 public:
-  GcloudGfuncFilter(Upstream::ClusterManager &cluster_manager,
-                  TimeSource &time_source);
+  GcloudGfuncFilter(Upstream::ClusterManager &cluster_manager
+                  );
   ~GcloudGfuncFilter();
 
   // Http::StreamFilterBase
@@ -44,8 +44,7 @@ private:
   void handleDefaultBody();
 
   void gfuncfy();
-  static std::string functionUrlPath(const std::string &name,
-                                     const std::string &url);
+  static std::string functionUrlPath(const std::string &url);
   void cleanup();
 
   Http::HeaderMap *request_headers_{};
