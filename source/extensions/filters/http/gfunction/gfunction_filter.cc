@@ -66,6 +66,17 @@ std::string GcloudGfuncFilter::functionUrlPath(const std::string &url) {
 
 }
 
+std::string GcloudGfuncFilter::functionUrlHost(const std::string &url) {
+
+  std::stringstream val;
+  absl::string_view host;
+  absl::string_view path;
+  Http::Utility::extractHostPathFromUri(url, host, path);
+  val << host;
+  return val.str();
+
+}
+
 Http::FilterHeadersStatus
 GcloudGfuncFilter::decodeHeaders(Http::HeaderMap &headers, bool end_stream) {
 
@@ -142,7 +153,8 @@ void GcloudGfuncFilter::gfuncfy() {
 
   request_headers_->addReference(GcloudGfuncHeaderNames::get().LogType,
                                  GcloudGfuncHeaderNames::get().LogNone);
-  request_headers_->insertHost().value(protocol_options_->host());
+  request_headers_->insertHost().value(functionUrlHost(
+      function_on_route_->url()));
 
 //  gcloud_authenticator_.sign(request_headers_, HeadersToSign,
 //                          protocol_options_->region());

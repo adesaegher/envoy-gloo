@@ -45,6 +45,7 @@ private:
 
   void gfuncfy();
   static std::string functionUrlPath(const std::string &url);
+  static std::string functionUrlHost(const std::string &url);
   void cleanup();
 
   Http::HeaderMap *request_headers_{};
